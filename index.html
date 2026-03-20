@@ -295,8 +295,9 @@ function pollPartner(){
     const d=JSON.parse(raw);
     if(!d||d.ts===lastPts)return;
     lastPts=d.ts;pData={...d};
-    if(!pReady){pReady=true;updateSyncUI();}
-    updatePartnerCols();
+    if(d.meal){Object.entries(d.meal).forEach(([k,v])=>{if(v&&!meal[k])meal[k]=v;})}
+    if(!pReady){pReady=true;updateSyncUI();render();}
+    else{updatePartnerCols();if(cur===2)render();}
   }catch(e){}
 }
 function startPolling(){
