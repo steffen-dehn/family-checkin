@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quick Check-in</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#0f1117;font-family:Georgia,serif;color:#f0ece4;display:flex;flex-direction:column;align-items:center;padding:2rem 1rem}
+.wrap{width:100%;max-width:520px}
+.prog-bar{height:3px;background:#1e2130;border-radius:4px;margin-bottom:1.6rem}
+.prog-fill{height:100%;border-radius:4px;background:#e8d5a3;transition:width .4s}
+.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem}
+.hdr-lbl{font-size:.72rem;color:#555;text-transform:uppercase;letter-spacing:.08em}
+.hdr-step{font-size:.72rem;color:#e8d5a3;font-weight:700}
+.card{background:#1a1d27;border-radius:1.2rem;padding:2rem;border:1px solid #2a2d3a;box-shadow:0 8px 32px rgba(0,0,0,.4);margin-bottom:1.4rem}
+.sec-title{display:flex;align-items:center;gap:.6rem;margin-bottom:1.4rem}
+.sec-emoji{font-size:1.5rem}
+.sec-name{font-size:1.2rem;font-weight:700;color:#e8d5a3}
+/* akku */
+.akku-val{font-size:3.5rem;font-weight:700;color:#e8d5a3;text-align:center;margin:.6rem 0}
+.akku-label{text-align:center;font-size:.78rem;color:#555;margin-bottom:1rem}
+input[type=range]{width:100%;accent-color:#e8d5a3;height:6px}
+.akku-bar{display:flex;justify-content:space-between;margin-top:.4rem}
+.akku-bar span{font-size:.68rem;color:#444}
+/* ampel */
+.amp-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;margin-top:.4rem}
+.amp-btn{display:flex;flex-direction:column;align-items:center;padding:1.4rem .5rem;border-radius:.8rem;border:2px solid #2a2d3a;background:#12151e;cursor:pointer;transition:all .2s}
+.amp-btn:hover{border-color:#555}
+.amp-btn.on{border-color:#e8d5a3;background:#1e2130}
+.amp-emoji{font-size:2.6rem}
+.amp-follow{margin-top:1.2rem}
+.amp-follow label{font-size:.8rem;color:#aaa;display:block;margin-bottom:.4rem}
+textarea{width:100%;background:#12151e;border:1px solid #2a2d3a;border-radius:.5rem;color:#f0ece4;padding:.6rem .8rem;font-size:.87rem;resize:vertical;font-family:inherit}
+textarea:focus{outline:1px solid #e8d5a3}
+textarea.partner{color:#6a8ae8;border-color:#1e1e3a;background:#0f0f1e}
+/* meal */
+.pool-lbl{font-size:.68rem;color:#555;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.55rem}
+.pool{display:flex;flex-wrap:wrap;gap:.38rem;margin-bottom:1.3rem}
+.chip{display:flex;align-items:center;gap:.28rem;padding:.32rem .62rem;border-radius:2rem;border:1.5px solid #2a2d3a;background:#12151e;font-size:.78rem;cursor:grab;user-select:none;touch-action:none;transition:all .15s}
+.chip:hover{border-color:#e8d5a3}
+.chip.dragging{opacity:.3}
+.chip.placed{border-color:#4caf82;background:#0e2018;color:#777}
+.chip.special{border-color:#6a5a8a;background:#140e1e}
+.chip.special.placed{border-color:#9a7ab8;background:#1a0e2a;color:#888}
+.wk{display:flex;flex-direction:column;gap:.38rem}
+.dslot{display:flex;align-items:center;gap:.55rem;background:#12151e;border:1.5px dashed #2a2d3a;border-radius:.65rem;padding:.48rem .75rem;min-height:44px;transition:all .15s}
+.dslot.over{border-color:#e8d5a3;background:#1e2130;border-style:solid}
+.dslot.filled{border-style:solid;border-color:#2a2d3a;background:#1a1d27}
+.dslot.chained{border-color:#4caf82}
+.dname{font-size:.72rem;color:#555;min-width:22px;font-weight:700}
+.dcontent{flex:1;font-size:.8rem}
+.dempty{flex:1;font-size:.72rem;color:#252830;font-style:italic}
+.dchain{font-size:.6rem;color:#4caf82;margin-left:.3rem}
+.drem{font-size:.62rem;color:#333;cursor:pointer;padding:.12rem .3rem;border:none;background:transparent}
+.drem:hover{color:#e87070}
+.suggrow{padding:.2rem 0 .1rem 2rem;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+.sugglbl{font-size:.63rem;color:#4a6a4a}
+.suggchip{font-size:.68rem;padding:.14rem .42rem;border-radius:1rem;border:1px solid #2a4a2a;background:#0a150a;color:#5a9a6a;cursor:pointer}
+.suggchip:hover{border-color:#4caf82}
+#ghost{position:fixed;pointer-events:none;z-index:9999;background:#1a1d27;border:1.5px solid #e8d5a3;border-radius:2rem;padding:.3rem .6rem;font-size:.78rem;font-family:Georgia,serif;color:#f0ece4;white-space:nowrap;opacity:.95;box-shadow:0 4px 20px rgba(0,0,0,.5);display:none}
+/* nav */
+.nav{display:flex;gap:.8rem}
+.btn-back{flex:1;background:#1a1d27;color:#aaa;border:1px solid #2a2d3a;border-radius:.6rem;padding:.72rem;cursor:pointer;font-size:.88rem;font-family:inherit}
+.btn-next{flex:2;background:#e8d5a3;color:#0f1117;border:none;border-radius:.6rem;padding:.72rem;cursor:pointer;font-weight:700;font-size:.92rem;font-family:inherit}
+.btn-done{flex:2;background:#4caf82;color:#fff;border:none;border-radius:.6rem;padding:.72rem;cursor:pointer;font-weight:700;font-size:.92rem;font-family:inherit}
+/* pair banner */
+.pbanner{background:#12151e;border:1px solid #2a2d3a;border-radius:.7rem;padding:.55rem 1rem;margin-bottom:1.1rem;display:flex;align-items:center;justify-content:space-between}
+.pbanner-name{font-size:.83rem;font-weight:600;color:#e8d5a3}
+.pbanner-r{display:flex;align-items:center;gap:.4rem}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dot.on{background:#4caf82;animation:pulse 2s infinite}
+.dot.off{background:#444}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pstatus{font-size:.7rem;color:#555}
+.pstatus.live{color:#4caf82}
+/* dual */
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-top:.5rem}
+.dcol{display:flex;flex-direction:column;gap:.3rem}
+.dlbl{font-size:.68rem;font-weight:700;text-align:center;padding:.16rem .3rem;border-radius:.25rem}
+.dlbl.me{background:#0e2018;color:#4caf82}.dlbl.them{background:#0f0f1e;color:#6a8ae8}
+/* pair screen */
+#pair-screen{display:flex;flex-direction:column;align-items:center;width:100%;max-width:520px;padding-top:.5rem}
+#main-screen{display:none;flex-direction:column;align-items:center;width:100%}
+.pcard{background:#1a1d27;border-radius:1.2rem;padding:1.8rem;border:1px solid #2a2d3a;width:100%;margin-bottom:1rem}
+.ptitle{font-size:1.1rem;font-weight:700;color:#e8d5a3;margin-bottom:.3rem}
+.psub{font-size:.8rem;color:#555;margin-bottom:1.5rem;line-height:1.5}
+.btn{display:block;width:100%;padding:.78rem;border-radius:.6rem;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;border:none;margin-bottom:.5rem}
+.btn-gold{background:#e8d5a3;color:#0f1117}
+.btn-green{background:#4caf82;color:#fff}
+.btn-ghost{background:transparent;color:#555;border:1px solid #2a2d3a}
+input[type=text]{width:100%;background:#12151e;border:1px solid #2a2d3a;border-radius:.5rem;color:#f0ece4;padding:.65rem .9rem;font-size:1rem;font-family:inherit}
+input[type=text]:focus{outline:1px solid #e8d5a3}
+input.big{font-size:1.6rem;text-align:center;letter-spacing:.2em;font-family:monospace}
+.divider{text-align:center;color:#333;font-size:.8rem;margin:.8rem 0}
+.role-tabs{display:flex;gap:.5rem;margin-bottom:1.2rem}
+.rtab{flex:1;padding:.6rem;border-radius:.5rem;font-size:.83rem;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;border:1.5px solid #2a2d3a;background:#12151e;color:#555;transition:all .2s}
+.rtab.active{border-color:#e8d5a3;color:#e8d5a3;background:#1a1d27}
+.lbl{font-size:.7rem;color:#555;text-transform:uppercase;letter-spacing:.08em}
+/* done */
+#done-screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;text-align:center;width:100%;max-width:520px}
+.done-icon{font-size:3rem;margin-bottom:1rem}
+.done-title{font-size:1.5rem;font-weight:700;color:#e8d5a3;margin-bottom:.4rem}
+.done-sub{color:#666;font-size:.88rem;margin-bottom:1.4rem}
+.summary{background:#1a1d27;border-radius:1rem;padding:1.4rem 1.8rem;width:100%;border:1px solid #2a2d3a;margin-bottom:1.4rem;text-align:left}
+.ss{margin-bottom:1rem}
+.ss-t{color:#e8d5a3;font-weight:600;font-size:.83rem;margin-bottom:.4rem}
+.si{font-size:.82rem;color:#aaa;padding-left:.7rem;margin-bottom:.2rem;line-height:1.5}
+.si span{color:#555}
+.sdual{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;padding-left:.7rem;margin-bottom:.25rem;font-size:.78rem}
+.sdual-me{color:#4caf82}.sdual-them{color:#6a8ae8}
+.done-btns{display:flex;gap:.7rem;flex-wrap:wrap;justify-content:center}
+.dbtn{padding:.65rem 1.3rem;border-radius:.5rem;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit}
+/* hist */
+#hist-screen{display:none;flex-direction:column;align-items:center;width:100%;max-width:520px}
+.hist-hdr{display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:1.2rem;flex-wrap:wrap;gap:.4rem}
+.hist-title{font-size:1.1rem;font-weight:700;color:#e8d5a3}
+.hist-acts{display:flex;gap:.4rem}
+.btn-sm{font-size:.72rem;padding:.3rem .6rem;border-radius:.35rem;cursor:pointer;font-family:inherit;border:1px solid #2a2d3a;background:#1a1d27;color:#666}
+.btn-sm.g{border-color:#e8d5a3;color:#e8d5a3}
+.btn-sm.r{border-color:#e87070;color:#e87070}
+.hist-list{width:100%;display:flex;flex-direction:column;gap:.8rem;margin-bottom:1.2rem}
+.he{background:#1a1d27;border:1px solid #2a2d3a;border-radius:.75rem;padding:1rem 1.3rem}
+.he-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem}
+.he-date{font-size:.82rem;color:#e8d5a3;font-weight:600}
+.he-amp{font-size:1rem}
+.he-meta{font-size:.7rem;color:#555}
+.acrd{background:#1a1d27;border:1px solid #2a2d3a;border-radius:.75rem;padding:1rem 1.3rem;width:100%;margin-bottom:.8rem}
+.acrd-t{font-size:.85rem;color:#e8d5a3;font-weight:600;margin-bottom:.6rem}
+.achart{display:flex;gap:.6rem;align-items:flex-end;height:55px;margin-bottom:.2rem}
+.abcol{display:flex;flex-direction:column;align-items:center;gap:.2rem;flex:1}
+.abar{width:100%;border-radius:4px 4px 0 0;min-height:4px}
+.abar.g{background:#4caf82}.abar.y{background:#e8c46a}.abar.r{background:#e87070}
+.ablbl{font-size:.65rem;color:#555}
+.aktrend{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.aklbl{font-size:.72rem;color:#555;min-width:40px}
+.akdots{display:flex;gap:3px;flex-wrap:wrap}
+.akdot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;color:#0f1117}
+</style>
+</head>
+<body>
+<div id="ghost"></div>
+
+<!-- PAIR SCREEN -->
+<div id="pair-screen">
+<div class="wrap">
+  <div class="pcard">
+    <div class="ptitle">👫 Quick Check-in</div>
+    <div class="psub">Solo oder mit Noémie – beide öffnen dieselbe Datei aus iCloud / Dropbox.</div>
+    <div class="role-tabs">
+      <div class="rtab active" id="tab-host" onclick="setTab('host')">Session erstellen</div>
+      <div class="rtab" id="tab-guest" onclick="setTab('guest')">Code eingeben</div>
+    </div>
+    <div id="host-panel">
+      <div class="lbl" style="margin-bottom:.5rem">Code wählen</div>
+      <input type="text" id="host-code" class="big" maxlength="4" placeholder="z.B. 2025" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+      <button class="btn btn-gold" style="margin-top:.8rem" onclick="startHost()">🔑 Session starten</button>
+    </div>
+    <div id="guest-panel" style="display:none">
+      <div class="lbl" style="margin-bottom:.5rem">Code von Steffen</div>
+      <input type="text" id="guest-code" class="big" maxlength="4" placeholder="CODE" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+      <button class="btn btn-green" style="margin-top:.8rem" onclick="joinGuest()">📲 Beitreten</button>
+    </div>
+    <div class="divider">— oder —</div>
+    <button class="btn btn-ghost" onclick="soloMode()">Solo ausfüllen</button>
+  </div>
+</div>
+</div>
+
+<!-- MAIN SCREEN -->
+<div id="main-screen">
+<div class="wrap">
+  <div style="margin-bottom:1.3rem">
+    <div class="hdr">
+      <div class="hdr-lbl">Quick Check-in</div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <button class="btn-sm g" onclick="showHistory()">📊</button>
+        <div class="hdr-step" id="step-count">1 / 3</div>
+      </div>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+  </div>
+  <div class="pbanner" id="pbanner" style="display:none">
+    <div class="pbanner-name" id="pb-name">––</div>
+    <div class="pbanner-r">
+      <span class="dot off" id="sync-dot"></span>
+      <span class="pstatus" id="sync-txt">Warte…</span>
+    </div>
+  </div>
+  <div id="card" class="card"></div>
+  <div class="nav" id="nav"></div>
+</div>
+</div>
+
+<!-- DONE -->
+<div id="done-screen">
+  <div class="done-icon">✅</div>
+  <h2 class="done-title">Fertig</h2>
+  <p class="done-sub" id="done-sub">Check-in gespeichert.</p>
+  <div class="summary" id="summary"></div>
+  <div class="done-btns">
+    <button class="dbtn" style="background:#e8d5a3;color:#0f1117;font-weight:700;border:none" onclick="resetCheckin()">Neue Woche</button>
+    <button class="dbtn" style="background:transparent;color:#e8d5a3;border:1px solid #e8d5a3" onclick="exportAll()">⬇ Export</button>
+    <button class="dbtn" style="background:transparent;color:#aaa;border:1px solid #2a2d3a" onclick="showHistory()">📊 Verlauf</button>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="hist-screen">
+<div class="wrap">
+  <div class="hist-hdr">
+    <div class="hist-title">📊 Verlauf</div>
+    <div class="hist-acts">
+      <button class="btn-sm g" onclick="exportAll()">⬇</button>
+      <button class="btn-sm g" onclick="triggerImport()">⬆</button>
+      <button class="btn-sm r" onclick="clearAll()">🗑</button>
+      <button class="btn-sm" onclick="backToMain()">← Zurück</button>
+    </div>
+  </div>
+  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+  <div id="analysis"></div>
+  <div id="hist-list" class="hist-list"></div>
+</div>
+</div>
+
+<script>
+const DAYS=["Mo","Di","Mi","Do","Fr","Sa","So"];
+const DISHES=[
+  {id:"quiche",      e:"🥧",n:"Gemüse-Quiche",         c:["nudelauflauf","ofengemuese"]},
+  {id:"ofengemuese", e:"🍠",n:"Ofengemüse",            c:["bowl","wraps","nudelauflauf"]},
+  {id:"orzo",        e:"🍲",n:"Orzo One Pot",          c:["nudelauflauf"]},
+  {id:"pfanne",      e:"🥦",n:"Gemüsepfanne+Wedges",   c:["wraps","bowl"]},
+  {id:"gratin",      e:"🧀",n:"Kartoffelgratin",       c:["ofengemuese"]},
+  {id:"pasta",       e:"🍝",n:"Pasta Tomatensauce",    c:["nudelauflauf"]},
+  {id:"nudelauflauf",e:"🍲",n:"Nudelauflauf",          c:["pasta","orzo"]},
+  {id:"bowl",        e:"🥗",n:"Bowl",                  c:["nasigoreng","aubergine"]},
+  {id:"nasigoreng",  e:"🍚",n:"Nasi Goreng",           c:["bowl"]},
+  {id:"wraps",       e:"🥙",n:"Wraps",                 c:["pfanne","ofengemuese","dal"]},
+  {id:"dal",         e:"🌱",n:"Dal Makhani",           c:["wraps","bowl"]},
+  {id:"linsen",      e:"🍲",n:"Linsen+Spätzle",        c:[]},
+  {id:"peanut",      e:"🥜",n:"Peanut Beans",          c:["bowl","wraps"]},
+  {id:"oko",         e:"🍳",n:"Oko",                   c:[]},
+  {id:"tahini",      e:"🥣",n:"Tahini-Spinat-Suppe",   c:[]},
+  {id:"aubergine",   e:"🍆",n:"Auberginen Curry",      c:["bowl","nasigoreng","wraps"]},
+  {id:"joker",       e:"🃏",n:"Joker",                 c:[], special:true},
+  {id:"bestello",    e:"🛒",n:"Bestello / Diät",       c:[], special:true},
+];
+
+// ── pairing ──
+let myRole="solo", myCode=null;
+let pData={}, pReady=false, lastPts=0, pollTimer=null;
+
+function syncKey(code,role){return`fam_quick_sync_${code}_${role}`}
+
+function setTab(t){
+  document.getElementById("tab-host").className="rtab"+(t==="host"?" active":"");
+  document.getElementById("tab-guest").className="rtab"+(t==="guest"?" active":"");
+  document.getElementById("host-panel").style.display=t==="host"?"block":"none";
+  document.getElementById("guest-panel").style.display=t==="guest"?"block":"none";
+}
+function startHost(){
+  const code=document.getElementById("host-code").value.trim().toUpperCase();
+  if(code.length<2){alert("Bitte Code eingeben");return}
+  myCode=code;myRole="host";
+  localStorage.removeItem(syncKey(code,"guest"));
+  startMain();
+}
+function joinGuest(){
+  const code=document.getElementById("guest-code").value.trim().toUpperCase();
+  if(code.length<2){alert("Bitte Code eingeben");return}
+  myCode=code;myRole="guest";startMain();
+}
+function soloMode(){myRole="solo";myCode=null;startMain()}
+
+function startMain(){
+  showScreen("main-screen");
+  if(myRole!=="solo"&&myCode){
+    document.getElementById("pbanner").style.display="flex";
+    document.getElementById("pb-name").textContent=myRole==="host"?"Steffen · Code: "+myCode:"Noémie · Code: "+myCode;
+    startPolling();
+  }
+  render();
+}
+
+function pushState(){
+  if(myRole==="solo"||!myCode) return;
+  try{localStorage.setItem(syncKey(myCode,myRole),JSON.stringify({akku,ampel,veraendern,veraendern_text,meal:{...meal},ts:Date.now()}))}catch(e){}
+}
+function pollPartner(){
+  if(myRole==="solo"||!myCode) return;
+  const pr=myRole==="host"?"guest":"host";
+  try{
+    const raw=localStorage.getItem(syncKey(myCode,pr));
+    if(!raw)return;
+    const d=JSON.parse(raw);
+    if(!d||d.ts===lastPts)return;
+    lastPts=d.ts;pData={...d};
+    if(!pReady){pReady=true;updateSyncUI();}
+    updatePartnerCols();
+  }catch(e){}
+}
+function startPolling(){
+  if(pollTimer)clearInterval(pollTimer);
+  pollTimer=setInterval(()=>{pushState();pollPartner()},1500);
+  setTimeout(pushState,200);
+}
+function updateSyncUI(){
+  const dot=document.getElementById("sync-dot"),txt=document.getElementById("sync-txt");
+  if(!dot||!txt)return;
+  if(pReady){dot.className="dot on";txt.textContent="Verbunden ✓";txt.className="pstatus live";}
+  else{dot.className="dot off";txt.textContent="Warte auf "+(myRole==="host"?"Noémie":"Steffen")+"…";txt.className="pstatus";}
+}
+function updatePartnerCols(){
+  if(cur===0){
+    const el=document.getElementById("p_akku");
+    if(el&&pData.akku!==undefined){el.value=pData.akku;const rv=document.getElementById("prv_akku");if(rv)rv.textContent=pData.akku+"%";}
+  }
+  if(cur===1){
+    const el=document.getElementById("p_veraendern");
+    if(el&&pData.veraendern_text!==undefined)el.value=pData.veraendern_text;
+  }
+}
+function isPaired(){return myRole!=="solo"&&myCode}
+
+// ── state ──
+let cur=0;
+let akku=70;
+let ampel="🟢";
+let veraendern="";       // text: was verändern
+let veraendern_text="";  // partner mirror
+let meal={};
+let dragId=null;
+const TOTAL=3;
+const HK="fam_quick_hist2";
+function lh(){try{return JSON.parse(localStorage.getItem(HK))||[]}catch{return[]}}
+function sh(h){localStorage.setItem(HK,JSON.stringify(h))}
+function addE(e){const h=lh();h.unshift(e);sh(h)}
+
+const SCREENS=["pair-screen","main-screen","done-screen","hist-screen"];
+function showScreen(id){SCREENS.forEach(s=>{const e=document.getElementById(s);if(e)e.style.display="none"});document.getElementById(id).style.display="flex";window.scrollTo(0,0)}
+function backToMain(){showScreen("main-screen");render()}
+function esc(s){if(!s)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+
+function render(){
+  document.getElementById("step-count").textContent=`${cur+1} / ${TOTAL}`;
+  document.getElementById("prog-fill").style.width=`${Math.round(cur/(TOTAL-1)*100)}%`;
+
+  let h="";
+  if(cur===0){
+    // ── AKKU ──
+    const label=akku>=80?"🔋 Gut aufgeladen":akku>=50?"⚡ Okay":akku>=30?"😓 Läuft leer":"🪫 Leer";
+    if(isPaired()){
+      const pv=pData.akku!==undefined?pData.akku:70;
+      h=`<div class="sec-title"><span class="sec-emoji">🔋</span><span class="sec-name">Akku</span></div>
+      <div class="dual">
+        <div class="dcol"><div class="dlbl me">Ich</div>
+          <div style="font-size:2.4rem;font-weight:700;color:#4caf82;text-align:center;margin:.4rem 0" id="akku-display">${akku}%</div>
+          <input type="range" min="0" max="100" step="5" value="${akku}" style="accent-color:#4caf82" oninput="updateAkku(this.value);pushState()">
+        </div>
+        <div class="dcol"><div class="dlbl them">Partner</div>
+          <div style="font-size:2.4rem;font-weight:700;color:#6a8ae8;text-align:center;margin:.4rem 0" id="prv_akku">${pv}%</div>
+          <input type="range" min="0" max="100" step="5" value="${pv}" id="p_akku" style="opacity:.5;accent-color:#6a8ae8;pointer-events:none">
+        </div>
+      </div>
+      <div class="akku-label" id="akku-label" style="margin-top:.6rem">${label}</div>`;
+    } else {
+      h=`<div class="sec-title"><span class="sec-emoji">🔋</span><span class="sec-name">Akku</span></div>
+      <div class="akku-val" id="akku-display">${akku}%</div>
+      <div class="akku-label" id="akku-label">${label}</div>
+      <input type="range" min="0" max="100" step="5" value="${akku}" oninput="updateAkku(this.value)">
+      <div class="akku-bar"><span>0%</span><span>50%</span><span>100%</span></div>`;
+    }
+  } else if(cur===1){
+    // ── AMPEL ──
+    const stressed=["🟡","🔴"].includes(ampel);
+    const pStressed=isPaired()&&pData.ampel&&["🟡","🔴"].includes(pData.ampel);
+    const showFollow=stressed||(isPaired()&&pStressed);
+    h=`<div class="sec-title"><span class="sec-emoji">🚦</span><span class="sec-name">Stress-Ampel</span></div>
+    <div class="amp-grid">
+      ${["🟢","🟡","🔴"].map(v=>`<div class="amp-btn${ampel===v?" on":""}" onclick="setAmpel('${v}')"><span class="amp-emoji">${v}</span></div>`).join("")}
+    </div>`;
+    if(showFollow){
+      if(isPaired()){
+        const myV=esc(veraendern||"");
+        const pV=esc(pData.veraendern_text||"");
+        h+=`<div class="amp-follow"><label>Was verändern wir?</label>
+        <div class="dual">
+          <div class="dcol"><div class="dlbl me">Ich</div><textarea rows="2" placeholder="…" oninput="veraendern=this.value;pushState()">${myV}</textarea></div>
+          <div class="dcol"><div class="dlbl them">Partner</div><textarea rows="2" readonly class="partner" id="p_veraendern" placeholder="wartet…">${pV}</textarea></div>
+        </div></div>`;
+      } else {
+        h+=`<div class="amp-follow"><label>Was verändern wir?</label>
+        <textarea rows="2" placeholder="…" oninput="veraendern=this.value">${esc(veraendern||"")}</textarea></div>`;
+      }
+    }
+  } else if(cur===2){
+    // ── ESSENSPLAN ──
+    const placed=new Set(Object.values(meal).filter(Boolean));
+    const pool=DISHES.map(d=>`<div class="chip${placed.has(d.id)?" placed":""}${d.special?" special":""}" id="chip-${d.id}" data-d="${d.id}" onmousedown="mStart(event,'${d.id}')" ontouchstart="tStart(event,'${d.id}')">${d.e} ${d.n}</div>`).join("");
+    let slots="";
+    DAYS.forEach((day,i)=>{
+      const did=meal[i],dish=did?DISHES.find(d=>d.id===did):null;
+      const prev=meal[i-1]?DISHES.find(d=>d.id===meal[i-1]):null;
+      const chained=dish&&prev&&!dish.special&&!prev.special&&prev.c.includes(did);
+      let sugg="";
+      if(dish&&!dish.special&&dish.c.length&&i<6&&!meal[i+1]){
+        const ss=dish.c.map(c=>DISHES.find(d=>d.id===c)).filter(Boolean);
+        if(ss.length) sugg=`<div class="suggrow"><span class="sugglbl">💡</span>${ss.map(s=>`<span class="suggchip" onclick="qa(${i+1},'${s.id}')">${s.e} ${s.n}</span>`).join("")}</div>`;
+      }
+      slots+=`<div class="dslot${dish?" filled":""}${chained?" chained":""}" id="slot-${i}" ondragover="dOv(event,${i})" ondragleave="dLv(${i})" ondrop="dDr(event,${i})">
+        <div class="dname">${day}</div>
+        ${dish?`<div class="dcontent">${dish.e} ${dish.n}${chained?`<span class="dchain">🔗</span>`:""}</div><button class="drem" onclick="rmDay(${i})">✕</button>`:`<div class="dempty">ablegen</div>`}
+      </div>${sugg}`;
+    });
+    h=`<div class="sec-title"><span class="sec-emoji">🍽</span><span class="sec-name">Essensplan</span></div>
+    <div class="pool-lbl">Gerichte</div><div class="pool" id="pool">${pool}</div>
+    <div class="pool-lbl">Woche</div><div class="wk" id="wk">${slots}</div>`;
+  }
+
+  document.getElementById("card").innerHTML=h;
+
+  let nav="";
+  if(cur>0) nav+=`<button class="btn-back" onclick="go(-1)">← Zurück</button>`;
+  if(cur<TOTAL-1) nav+=`<button class="btn-next" onclick="go(1)">Weiter →</button>`;
+  else nav+=`<button class="btn-done" onclick="finish()">✅ Fertig</button>`;
+  document.getElementById("nav").innerHTML=nav;
+  updateSyncUI();
+}
+
+function updateAkku(v){
+  akku=parseInt(v);
+  const display=document.getElementById("akku-display");
+  if(display)display.textContent=v+"%";
+  const label=akku>=80?"🔋 Gut aufgeladen":akku>=50?"⚡ Okay":akku>=30?"😓 Läuft leer":"🪫 Leer";
+  const lel=document.getElementById("akku-label");if(lel)lel.textContent=label;
+}
+function setAmpel(v){
+  ampel=v;
+  // save current textarea before re-render
+  const ta=document.querySelector("#card .amp-follow textarea:not([readonly])");
+  if(ta) veraendern=ta.value;
+  render();pushState();
+}
+function go(d){
+  // save textarea on ampel step
+  if(cur===1){const ta=document.querySelector("#card .amp-follow textarea:not([readonly])");if(ta)veraendern=ta.value;}
+  pushState();
+  cur=Math.max(0,Math.min(TOTAL-1,cur+d));render();window.scrollTo(0,0);
+}
+function qa(i,did){meal[i]=did;render();pushState()}
+function rmDay(i){delete meal[i];render();pushState()}
+
+function finish(){
+  const ta=document.querySelector("#card .amp-follow textarea:not([readonly])");if(ta)veraendern=ta.value;
+  pushState();
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null}
+
+  const merged={akku,ampel,veraendern};
+  if(isPaired()&&pReady){
+    if(pData.akku!==undefined) merged.akku_p=pData.akku;
+    if(pData.ampel!==undefined) merged.ampel_p=pData.ampel;
+    if(pData.veraendern_text||pData.veraendern) merged.veraendern_p=pData.veraendern_text||pData.veraendern;
+  }
+  addE({date:new Date().toISOString(),...merged,mealPlan:{...meal},paired:isPaired()&&pReady});
+
+  // summary
+  let h=`<div class="ss"><div class="ss-t">🔋 Akku</div>`;
+  if(merged.akku_p!==undefined){
+    h+=`<div class="sdual"><div class="sdual-me">Steffen: ${akku}%</div><div class="sdual-them">Noémie: ${merged.akku_p}%</div></div>`;
+  } else {
+    h+=`<div class="si">${akku}%</div>`;
+  }
+  h+=`</div><div class="ss"><div class="ss-t">🚦 Stress-Ampel</div>`;
+  if(merged.ampel_p!==undefined){
+    h+=`<div class="sdual"><div class="sdual-me">Steffen: ${ampel}</div><div class="sdual-them">Noémie: ${merged.ampel_p}</div></div>`;
+  } else {
+    h+=`<div class="si">${ampel}</div>`;
+  }
+  if(merged.veraendern||merged.veraendern_p){
+    if(merged.veraendern_p){
+      h+=`<div class="sdual" style="margin-top:.3rem"><div class="sdual-me">${esc(merged.veraendern)}</div><div class="sdual-them">${esc(merged.veraendern_p)}</div></div>`;
+    } else if(merged.veraendern) {
+      h+=`<div class="si" style="margin-top:.2rem">${esc(merged.veraendern)}</div>`;
+    }
+  }
+  h+=`</div>`;
+  const pl=Object.entries(meal).filter(([,d])=>d).sort((a,b)=>+a[0]-+b[0]);
+  if(pl.length){
+    h+=`<div class="ss"><div class="ss-t">🍽 Essensplan</div>`;
+    pl.forEach(([di,did])=>{const d=DISHES.find(x=>x.id===did);h+=`<div class="si"><span>${DAYS[di]}: </span>${d?d.e+" "+d.n:did}</div>`});
+    h+=`</div>`;
+  }
+  document.getElementById("summary").innerHTML=h;
+  document.getElementById("done-sub").textContent=isPaired()&&pReady?"✨ Beide Antworten zusammengeführt.":"Check-in gespeichert.";
+  showScreen("done-screen");
+}
+
+function resetCheckin(){
+  akku=70;ampel="🟢";veraendern="";meal={};cur=0;
+  myRole="solo";myCode=null;pData={};pReady=false;lastPts=0;
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null}
+  showScreen("pair-screen");
+}
+
+// ── drag mouse ──
+function mStart(e,did){
+  dragId=did;const g=document.getElementById("ghost"),d=DISHES.find(x=>x.id===did);
+  g.textContent=d.e+" "+d.n;g.style.display="block";
+  g.style.left=(e.clientX+12)+"px";g.style.top=(e.clientY-18)+"px";
+  setTimeout(()=>{const c=document.getElementById("chip-"+did);if(c)c.classList.add("dragging")},0);
+  document.addEventListener("mousemove",mMv);document.addEventListener("mouseup",mUp);
+}
+function mMv(e){const g=document.getElementById("ghost");g.style.left=(e.clientX+12)+"px";g.style.top=(e.clientY-18)+"px"}
+function mUp(e){
+  document.removeEventListener("mousemove",mMv);document.removeEventListener("mouseup",mUp);
+  document.getElementById("ghost").style.display="none";
+  if(dragId){const c=document.getElementById("chip-"+dragId);if(c)c.classList.remove("dragging")}
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  if(el){const s=el.closest(".dslot");if(s){const i=parseInt(s.id.replace("slot-",""));if(!isNaN(i)){meal[i]=dragId;render();pushState()}}}
+  dragId=null;
+}
+function dOv(e,i){e.preventDefault();document.getElementById("slot-"+i)?.classList.add("over")}
+function dLv(i){document.getElementById("slot-"+i)?.classList.remove("over")}
+function dDr(e,i){e.preventDefault();document.getElementById("slot-"+i)?.classList.remove("over");if(dragId){meal[i]=dragId;render();pushState();dragId=null}}
+
+// ── drag touch ──
+let tId=null;
+function tStart(e,did){
+  tId=did;dragId=did;const t=e.touches[0],g=document.getElementById("ghost"),d=DISHES.find(x=>x.id===did);
+  g.textContent=d.e+" "+d.n;g.style.display="block";
+  g.style.left=(t.clientX+12)+"px";g.style.top=(t.clientY-30)+"px";
+  const c=document.getElementById("chip-"+did);if(c)c.classList.add("dragging");
+  document.addEventListener("touchmove",tMv,{passive:false});
+  document.addEventListener("touchend",tUp);document.addEventListener("touchcancel",tUp);
+}
+function tMv(e){
+  e.preventDefault();const t=e.touches[0],g=document.getElementById("ghost");
+  g.style.left=(t.clientX+12)+"px";g.style.top=(t.clientY-30)+"px";
+  g.style.display="none";const el=document.elementFromPoint(t.clientX,t.clientY);g.style.display="block";
+  document.querySelectorAll(".dslot").forEach(s=>s.classList.remove("over"));
+  if(el){const s=el.closest(".dslot");if(s)s.classList.add("over")}
+}
+function tUp(e){
+  document.removeEventListener("touchmove",tMv);document.removeEventListener("touchend",tUp);document.removeEventListener("touchcancel",tUp);
+  document.getElementById("ghost").style.display="none";
+  if(tId){const c=document.getElementById("chip-"+tId);if(c)c.classList.remove("dragging")}
+  const t=e.changedTouches[0];const el=document.elementFromPoint(t.clientX,t.clientY);
+  document.querySelectorAll(".dslot").forEach(s=>s.classList.remove("over"));
+  if(el){const s=el.closest(".dslot");if(s){const i=parseInt(s.id.replace("slot-",""));if(!isNaN(i)){meal[i]=tId;render();pushState()}}};
+  tId=null;dragId=null;
+}
+
+// ── history ──
+function showHistory(){
+  const h=lh();
+  let ah="";
+  if(h.length>=2){
+    const ac={"🟢":0,"🟡":0,"🔴":0};h.forEach(e=>ac[e.ampel||"🟢"]++);
+    const tot=h.length,mH=50;
+    ah+=`<div class="acrd"><div class="acrd-t">Stress-Ampel (${tot} Wochen)</div><div class="achart">`;
+    [["🟢","g"],["🟡","y"],["🔴","r"]].forEach(([em,cls])=>{
+      const cnt=ac[em],bh=Math.max(4,Math.round(cnt/tot*mH));
+      ah+=`<div class="abcol"><div style="font-size:.62rem;color:#555">${cnt}×</div><div class="abar ${cls}" style="height:${bh}px"></div><div class="ablbl">${em}</div></div>`;
+    });
+    ah+=`</div></div>`;
+    const rec=h.slice(0,8).reverse();
+    ah+=`<div class="acrd"><div class="acrd-t">Akku-Verlauf</div>`;
+    [["akku","Steffen"],["akku_p","Noémie"]].forEach(([key,lbl])=>{
+      if(!rec.some(e=>e[key]!==undefined))return;
+      ah+=`<div class="aktrend" style="margin-bottom:.4rem"><div class="aklbl">${lbl}</div><div class="akdots">`;
+      rec.forEach(e=>{const v=parseInt(e[key]||70);const col=v>=70?"#4caf82":v>=40?"#e8c46a":"#e87070";ah+=`<div class="akdot" style="background:${col}">${v}%</div>`});
+      ah+=`</div></div>`;
+    });
+    ah+=`</div>`;
+  } else {
+    ah=`<div class="acrd" style="color:#555;font-size:.78rem">Auswertung ab 2 Check-ins.</div>`;
+  }
+  document.getElementById("analysis").innerHTML=ah;
+  let eh="";
+  if(!h.length){eh=`<div style="color:#555;font-size:.8rem;text-align:center;padding:1.5rem">Noch keine Check-ins.</div>`}
+  else h.forEach(e=>{
+    const d=new Date(e.date),ds=d.toLocaleDateString("de-DE",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"});
+    const mc=e.mealPlan?Object.keys(e.mealPlan).length:0;
+    eh+=`<div class="he">
+      <div class="he-top"><div class="he-date">${ds}</div><div class="he-amp">${e.ampel||"🟢"}</div></div>
+      <div class="he-meta">Akku: ${e.akku||"–"}%${mc?` · 🍽 ${mc} Gerichte`:""}${e.paired?" · 👫":""}</div>
+    </div>`;
+  });
+  document.getElementById("hist-list").innerHTML=eh;
+  showScreen("hist-screen");
+}
+function exportAll(){
+  const blob=new Blob([JSON.stringify({exported:new Date().toISOString(),entries:lh()},null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=`quick-checkin-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
+}
+function triggerImport(){document.getElementById("import-file").click()}
+function importJSON(ev){
+  const file=ev.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      const inc=data.entries||(Array.isArray(data)?data:[]);
+      const ex=lh(),dates=new Set(ex.map(x=>x.date));
+      const merged=[...ex];inc.forEach(e=>{if(!dates.has(e.date))merged.push(e)});
+      merged.sort((a,b)=>new Date(b.date)-new Date(a.date));
+      sh(merged);alert(`${merged.length} Check-ins`);showHistory();
+    }catch{alert("Ungültige Datei.")}
+  };
+  r.readAsText(file);ev.target.value="";
+}
+function clearAll(){if(confirm("Alle löschen?")){{localStorage.removeItem(HK);showHistory()}}}
+
+showScreen("pair-screen");
+</script>
+</body>
+</html>
