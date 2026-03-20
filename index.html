@@ -284,7 +284,7 @@ function startMain(){
 
 function pushState(){
   if(myRole==="solo"||!myCode) return;
-  try{localStorage.setItem(syncKey(myCode,myRole),JSON.stringify({akku,ampel,veraendern,veraendern_text,meal:{...meal},ts:Date.now()}))}catch(e){}
+  try{localStorage.setItem(syncKey(myCode,myRole),JSON.stringify({akku,ampel,veraendern,meal:{...meal},ts:Date.now()}))}catch(e){}
 }
 function pollPartner(){
   if(myRole==="solo"||!myCode) return;
@@ -318,7 +318,7 @@ function updatePartnerCols(){
   }
   if(cur===1){
     const el=document.getElementById("p_veraendern");
-    if(el&&pData.veraendern_text!==undefined)el.value=pData.veraendern_text;
+    if(el&&pData.veraendern!==undefined)el.value=pData.veraendern;
   }
 }
 function isPaired(){return myRole!=="solo"&&myCode}
@@ -327,8 +327,7 @@ function isPaired(){return myRole!=="solo"&&myCode}
 let cur=0;
 let akku=70;
 let ampel="🟢";
-let veraendern="";       // text: was verändern
-let veraendern_text="";  // partner mirror
+let veraendern="";
 let meal={};
 let dragId=null;
 const TOTAL=3;
@@ -383,7 +382,7 @@ function render(){
     if(showFollow){
       if(isPaired()){
         const myV=esc(veraendern||"");
-        const pV=esc(pData.veraendern_text||"");
+        const pV=esc(pData.veraendern||"");
         h+=`<div class="amp-follow"><label>Was verändern wir?</label>
         <div class="dual">
           <div class="dcol"><div class="dlbl me">Ich</div><textarea rows="2" placeholder="…" oninput="veraendern=this.value;pushState()">${myV}</textarea></div>
@@ -456,43 +455,51 @@ function finish(){
   pushState();
   if(pollTimer){clearInterval(pollTimer);pollTimer=null}
 
+  // Merge partner meal into shared plan (last write wins per day)
+  if(isPaired()&&pReady&&pData.meal){
+    Object.entries(pData.meal).forEach(([k,v])=>{if(v&&!meal[k])meal[k]=v;});
+  }
+
   const merged={akku,ampel,veraendern};
   if(isPaired()&&pReady){
-    if(pData.akku!==undefined) merged.akku_p=pData.akku;
-    if(pData.ampel!==undefined) merged.ampel_p=pData.ampel;
-    if(pData.veraendern_text||pData.veraendern) merged.veraendern_p=pData.veraendern_text||pData.veraendern;
+    merged.akku_p   = pData.akku!==undefined ? pData.akku : "–";
+    merged.ampel_p  = pData.ampel||"–";
+    if(pData.veraendern) merged.veraendern_p=pData.veraendern;
   }
   addE({date:new Date().toISOString(),...merged,mealPlan:{...meal},paired:isPaired()&&pReady});
 
-  // summary
+  // ── summary ──
+  const myName  = myRole==="host"?"Steffen":"Noémie";
+  const herName = myRole==="host"?"Noémie":"Steffen";
+
   let h=`<div class="ss"><div class="ss-t">🔋 Akku</div>`;
-  if(merged.akku_p!==undefined){
-    h+=`<div class="sdual"><div class="sdual-me">Steffen: ${akku}%</div><div class="sdual-them">Noémie: ${merged.akku_p}%</div></div>`;
+  if(isPaired()&&pReady){
+    h+=`<div class="sdual"><div class="sdual-me">${myName}: ${akku}%</div><div class="sdual-them">${herName}: ${merged.akku_p}%</div></div>`;
   } else {
     h+=`<div class="si">${akku}%</div>`;
   }
   h+=`</div><div class="ss"><div class="ss-t">🚦 Stress-Ampel</div>`;
-  if(merged.ampel_p!==undefined){
-    h+=`<div class="sdual"><div class="sdual-me">Steffen: ${ampel}</div><div class="sdual-them">Noémie: ${merged.ampel_p}</div></div>`;
+  if(isPaired()&&pReady){
+    h+=`<div class="sdual"><div class="sdual-me">${myName}: ${ampel}</div><div class="sdual-them">${herName}: ${merged.ampel_p}</div></div>`;
   } else {
     h+=`<div class="si">${ampel}</div>`;
   }
   if(merged.veraendern||merged.veraendern_p){
-    if(merged.veraendern_p){
+    if(merged.veraendern_p&&merged.veraendern){
       h+=`<div class="sdual" style="margin-top:.3rem"><div class="sdual-me">${esc(merged.veraendern)}</div><div class="sdual-them">${esc(merged.veraendern_p)}</div></div>`;
-    } else if(merged.veraendern) {
-      h+=`<div class="si" style="margin-top:.2rem">${esc(merged.veraendern)}</div>`;
+    } else {
+      h+=`<div class="si" style="margin-top:.2rem">${esc(merged.veraendern||merged.veraendern_p)}</div>`;
     }
   }
   h+=`</div>`;
   const pl=Object.entries(meal).filter(([,d])=>d).sort((a,b)=>+a[0]-+b[0]);
   if(pl.length){
-    h+=`<div class="ss"><div class="ss-t">🍽 Essensplan</div>`;
+    h+=`<div class="ss"><div class="ss-t">🍽 Gemeinsamer Essensplan</div>`;
     pl.forEach(([di,did])=>{const d=DISHES.find(x=>x.id===did);h+=`<div class="si"><span>${DAYS[di]}: </span>${d?d.e+" "+d.n:did}</div>`});
     h+=`</div>`;
   }
   document.getElementById("summary").innerHTML=h;
-  document.getElementById("done-sub").textContent=isPaired()&&pReady?"✨ Beide Antworten zusammengeführt.":"Check-in gespeichert.";
+  document.getElementById("done-sub").textContent=isPaired()&&pReady?"Beide Antworten zusammengeführt ✓":"Check-in gespeichert.";
   showScreen("done-screen");
 }
 
