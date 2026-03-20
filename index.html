@@ -155,6 +155,11 @@ input.big{font-size:1.6rem;text-align:center;letter-spacing:.2em;font-family:mon
       <div class="lbl" style="margin-bottom:.5rem">Code wählen</div>
       <input type="text" id="host-code" class="big" maxlength="4" placeholder="z.B. 2025" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
       <button class="btn btn-gold" style="margin-top:.8rem" onclick="startHost()">🔑 Session starten</button>
+      <div id="host-share" style="display:none;margin-top:.8rem;background:#12151e;border-radius:.5rem;padding:.7rem;border:1px solid #2a2d3a">
+        <div class="lbl" style="margin-bottom:.4rem">Link an Noémie schicken</div>
+        <div class="share-url" style="font-size:.72rem;color:#e8d5a3;word-break:break-all;margin-bottom:.5rem"></div>
+        <button class="btn btn-ghost" style="padding:.4rem .8rem;font-size:.78rem" onclick="copyShareLink()">Link kopieren</button>
+      </div>
     </div>
     <div id="guest-panel" style="display:none">
       <div class="lbl" style="margin-bottom:.5rem">Code von Steffen</div>
@@ -246,11 +251,91 @@ const DISHES=[
   {id:"bestello",    e:"🛒",n:"Bestello / Diät",       c:[], special:true},
 ];
 
-// ── pairing ──
+// ── SYNC via jsonbin.io ──
+const JSONBIN_BASE="https://api.jsonbin.io/v3";
+const BIN_COLLECTION="family-checkin";
+
+async function getOrCreateBin(code,role){
+  const storageKey="fam_bin_"+code+"_"+role;
+  const cached=localStorage.getItem(storageKey);
+  if(cached)return cached;
+  // create new bin named code+role
+  try{
+    const r=await fetch(JSONBIN_BASE+"/b",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-Bin-Name":code+"_"+role,"X-Bin-Private":"false"},
+      body:JSON.stringify({init:true,ts:0})
+    });
+    const d=await r.json();
+    if(d.metadata&&d.metadata.id){
+      localStorage.setItem(storageKey,d.metadata.id);
+      return d.metadata.id;
+    }
+  }catch(e){}
+  return null;
+}
+
+async function pushToCloud(code,role,data){
+  // always write to localStorage as fallback
+  try{localStorage.setItem("fam_sync_"+code+"_"+role,JSON.stringify({...data,ts:Date.now()}))}catch(e){}
+  // write to jsonbin
+  const binId=await getOrCreateBin(code,role);
+  if(!binId)return;
+  try{
+    await fetch(JSONBIN_BASE+"/b/"+binId,{
+      method:"PUT",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({...data,ts:Date.now()})
+    });
+  }catch(e){}
+}
+
+async function pullFromCloud(code,role){
+  // try localStorage first (same device)
+  try{
+    const raw=localStorage.getItem("fam_sync_"+code+"_"+role);
+    if(raw){const d=JSON.parse(raw);if(d&&d.ts&&d.ts!==lastPts)return d;}
+  }catch(e){}
+  // try jsonbin
+  const storageKey="fam_bin_"+code+"_"+role;
+  const binId=localStorage.getItem(storageKey);
+  if(!binId){
+    // guest: host must have created bin, try to find it by searching recent
+    // we can't search without master key, so show a message
+    return null;
+  }
+  try{
+    const r=await fetch(JSONBIN_BASE+"/b/"+binId+"/latest",{headers:{"X-Bin-Meta":"false"}});
+    const d=await r.json();
+    if(d&&d.ts&&d.ts!==lastPts)return d;
+  }catch(e){}
+  return null;
+}
+
+// share bin ID via URL hash so guest can find it
+function buildShareURL(){
+  const base=window.location.href.split("?")[0].split("#")[0];
+  const hostBinId=localStorage.getItem("fam_bin_"+myCode+"_host")||"";
+  return base+"?code="+myCode+"&bin="+hostBinId;
+}
+
+function checkURLParams(){
+  const params=new URLSearchParams(window.location.search);
+  const code=params.get("code");
+  const bin=params.get("bin");
+  if(code&&bin){
+    // pre-fill guest panel
+    document.getElementById("guest-code").value=code.toUpperCase();
+    localStorage.setItem("fam_bin_"+code+"_host",bin);
+    setTab("guest");
+    document.getElementById("guest-panel").style.display="block";
+    document.getElementById("host-panel").style.display="none";
+  }
+}
+
+// ── pairing state ──
 let myRole="solo", myCode=null;
 let pData={}, pReady=false, lastPts=0, pollTimer=null;
-
-function syncKey(code,role){return`fam_quick_sync_${code}_${role}`}
 
 function setTab(t){
   document.getElementById("tab-host").className="rtab"+(t==="host"?" active":"");
@@ -258,11 +343,21 @@ function setTab(t){
   document.getElementById("host-panel").style.display=t==="host"?"block":"none";
   document.getElementById("guest-panel").style.display=t==="guest"?"block":"none";
 }
-function startHost(){
+async function startHost(){
   const code=document.getElementById("host-code").value.trim().toUpperCase();
   if(code.length<2){alert("Bitte Code eingeben");return}
+  const btn=document.querySelector("#host-panel .btn-gold");
+  btn.textContent="⏳ Erstelle Session…";btn.disabled=true;
   myCode=code;myRole="host";
-  localStorage.removeItem(syncKey(code,"guest"));
+  await getOrCreateBin(code,"host");
+  btn.textContent="🔑 Session starten";btn.disabled=false;
+  // show share link
+  const url=buildShareURL();
+  const shareDiv=document.getElementById("host-share");
+  if(shareDiv){
+    shareDiv.style.display="block";
+    shareDiv.querySelector(".share-url").textContent=url;
+  }
   startMain();
 }
 function joinGuest(){
@@ -284,26 +379,22 @@ function startMain(){
 
 function pushState(){
   if(myRole==="solo"||!myCode) return;
-  try{localStorage.setItem(syncKey(myCode,myRole),JSON.stringify({akku,ampel,veraendern,meal:{...meal},ts:Date.now()}))}catch(e){}
+  pushToCloud(myCode,myRole,{akku,ampel,veraendern,meal:{...meal}});
 }
-function pollPartner(){
+async function pollPartner(){
   if(myRole==="solo"||!myCode) return;
   const pr=myRole==="host"?"guest":"host";
-  try{
-    const raw=localStorage.getItem(syncKey(myCode,pr));
-    if(!raw)return;
-    const d=JSON.parse(raw);
-    if(!d||d.ts===lastPts)return;
-    lastPts=d.ts;pData={...d};
-    if(d.meal){Object.entries(d.meal).forEach(([k,v])=>{if(v&&!meal[k])meal[k]=v;})}
-    if(!pReady){pReady=true;updateSyncUI();render();}
-    else{updatePartnerCols();if(cur===2)render();}
-  }catch(e){}
+  const d=await pullFromCloud(myCode,pr);
+  if(!d)return;
+  lastPts=d.ts;pData={...d};
+  if(d.meal){Object.entries(d.meal).forEach(([k,v])=>{if(v&&!meal[k])meal[k]=v;})}
+  if(!pReady){pReady=true;updateSyncUI();render();}
+  else{updatePartnerCols();if(cur===2)render();}
 }
 function startPolling(){
   if(pollTimer)clearInterval(pollTimer);
-  pollTimer=setInterval(()=>{pushState();pollPartner()},1500);
-  setTimeout(pushState,200);
+  setTimeout(()=>pushState(),300);
+  pollTimer=setInterval(async()=>{pushState();await pollPartner();},3000);
 }
 function updateSyncUI(){
   const dot=document.getElementById("sync-dot"),txt=document.getElementById("sync-txt");
@@ -618,8 +709,17 @@ function importJSON(ev){
   };
   r.readAsText(file);ev.target.value="";
 }
+function copyShareLink(){
+  const url=buildShareURL();
+  navigator.clipboard.writeText(url).then(()=>{
+    const btn=document.querySelector("#host-share .btn-ghost");
+    btn.textContent="✅ Kopiert!";setTimeout(()=>btn.textContent="Link kopieren",2000);
+  }).catch(()=>{ prompt("Link kopieren:",url); });
+}
+
 function clearAll(){if(confirm("Alle löschen?")){{localStorage.removeItem(HK);showHistory()}}}
 
+checkURLParams();
 showScreen("pair-screen");
 </script>
 </body>
